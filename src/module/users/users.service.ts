@@ -5,44 +5,65 @@ import {
 } from '@nestjs/common';
 import { Prisma, User } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../lib/database/prisma.service.js';
-import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+
+export type PublicUser = Omit<User, 'password'>;
+
+const omitPassword = { password: true } as const;
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(data: Prisma.UserCreateInput): Promise<PublicUser> {
     try {
-      return await this.prisma.user.create({ data: dto });
+      return await this.prisma.user.create({ data, omit: omitPassword });
     } catch (error) {
       this.handleError(error);
     }
   }
 
-  findAll(): Promise<User[]> {
-    return this.prisma.user.findMany({ orderBy: { id: 'asc' } });
+  findAll(): Promise<PublicUser[]> {
+    return this.prisma.user.findMany({
+      orderBy: { id: 'asc' },
+      omit: omitPassword,
+    });
   }
 
-  async findOne(id: number): Promise<User> {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+  async findOne(id: number): Promise<PublicUser> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      omit: omitPassword,
+    });
     if (!user) {
       throw new NotFoundException(`User ${id} not found`);
     }
     return user;
   }
 
-  async update(id: number, dto: UpdateUserDto): Promise<User> {
+  // Includes the password hash — only for credential checks, never return it from a controller.
+  findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  async update(id: number, dto: UpdateUserDto): Promise<PublicUser> {
     try {
-      return await this.prisma.user.update({ where: { id }, data: dto });
+      return await this.prisma.user.update({
+        where: { id },
+        data: dto,
+        omit: omitPassword,
+      });
     } catch (error) {
       this.handleError(error, id);
     }
   }
 
-  async remove(id: number): Promise<User> {
+  async remove(id: number): Promise<PublicUser> {
     try {
-      return await this.prisma.user.delete({ where: { id } });
+      return await this.prisma.user.delete({
+        where: { id },
+        omit: omitPassword,
+      });
     } catch (error) {
       this.handleError(error, id);
     }
